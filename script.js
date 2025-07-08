@@ -1,59 +1,45 @@
-// Sample dummy data
-const data = {
-  fund: [
-    { name: "Fund A", amount: 2000000, value: 2800000 },
-    { name: "Fund B", amount: 1500000, value: 1600000 }
-  ],
-  direct: [
-    { name: "Startup X", amount: 1000000, value: 3000000 }
-  ],
-  other: [
-    { name: "Private Equity Y", amount: 500000, value: 750000 }
-  ]
-};
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/YOUR_SHEET_ID/pub?output=csv';
 
-// Determine which page is loaded
-const page = window.location.pathname;
+Tabletop.init({
+  key: SHEET_URL,
+  callback: handleData,
+  simpleSheet: true
+});
 
-if (page.includes("fund.html")) {
-  renderSection("fund", "fund-table", "fundChart");
-} else if (page.includes("direct.html")) {
-  renderSection("direct", "direct-table", "directChart");
-} else if (page.includes("other.html")) {
-  renderSection("other", "other-table", "otherChart");
-}
+function handleData(data) {
+  // Build fund-company matrix
+  const funds = [...new Set(data.map(row => row.Fund))];
+  const companies = [...new Set(data.map(row => row.Company))];
 
-function renderSection(key, tableId, chartId) {
-  const table = document.getElementById(tableId);
-  if (!table) return;
-
-  const sectionData = data[key];
-
-  let html = `<thead><tr><th>Name</th><th>Amount</th><th>Value</th><th>Return (%)</th></tr></thead><tbody>`;
-  sectionData.forEach(item => {
-    const ret = (((item.value - item.amount) / item.amount) * 100).toFixed(2);
-    html += `<tr>
-      <td>${item.name}</td>
-      <td>$${item.amount.toLocaleString()}</td>
-      <td>$${item.value.toLocaleString()}</td>
-      <td>${ret}%</td>
-    </tr>`;
-  });
-  html += "</tbody>";
-  table.innerHTML = html;
-
-  // Render chart
-  const ctx = document.getElementById(chartId);
-  if (ctx) {
-    new Chart(ctx, {
-      type: "pie",
-      data: {
-        labels: sectionData.map(i => i.name),
-        datasets: [{
-          data: sectionData.map(i => i.value),
-          backgroundColor: ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2"]
-        }]
-      }
+  const matrix = funds.map(fund => {
+    return companies.map(company => {
+      const entry = data.find(r => r.Fund === fund && r.Company === company);
+      return entry ? Number(entry.Amount) : 0;
     });
-  }
+  });
+
+  const ctx = document.getElementById('exposureChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: companies,
+      datasets: funds.map((fund, i) => ({
+        label: fund,
+        data: matrix[i],
+        backgroundColor: `hsl(${(i * 70) % 360}, 60%, 60%)`
+      }))
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Investment Amount'
+          }
+        }
+      }
+    }
+  });
 }
